@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='cldfviz',
-    version='0.5.1.dev0',
+    version='0.8.1.dev0',
     author='Robert Forkel',
     author_email='dlce.rdm@eva.mpg.de',
     description='A cldfbench plugin to create vizualisations of CLDF datasets',
@@ -22,22 +22,27 @@ setup(
         ],
     },
     platforms='any',
-    python_requires='>=3.6',
+    python_requires='>=3.7',
     install_requires=[
-        'clldutils',
-        'cldfbench>=1.5.0',
+        'clldutils>=3.11.1',
+        'pycldf>=1.26',
+        'cldfbench>=1.11.0',
         'attrs',
+        'termcolor',
+        'jinja2',
         'pyglottolog',
         'tqdm',
         'yattag',
         'matplotlib',
         'numpy',
+        'jmespath',
     ],
     extras_require={
         'cartopy': [
             # Newer cartopy requires PROJ >= 8 which isn't available by default
             # on current Ubuntu.
             'cartopy<0.20',
+            'scipy',
         ],
         'dev': ['flake8', 'wheel', 'twine'],
         'test': [
@@ -54,7 +59,6 @@ setup(
         'Natural Language :: English',
         'Operating System :: OS Independent',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',

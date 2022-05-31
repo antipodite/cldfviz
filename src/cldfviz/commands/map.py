@@ -21,7 +21,7 @@ import pathlib
 
 from pycldf.cli_util import get_dataset, add_dataset
 from clldutils.clilib import PathType, ParserError
-from cldfbench.cli_util import add_catalog_spec
+from cldfbench.cli_util import add_catalog_spec, IGNORE_MISSING
 
 from cldfviz.colormap import Colormap, COLORMAPS
 from cldfviz.multiparameter import MultiParameter, CONTINUOUS, CATEGORICAL
@@ -41,7 +41,7 @@ def join_quoted(items):
 def register(parser):
     add_testable(parser)
     add_dataset(parser)
-    add_catalog_spec(parser, 'glottolog')
+    add_catalog_spec(parser, 'glottolog', default=IGNORE_MISSING)
     add_listvalued(
         parser,
         '--parameters',
@@ -128,14 +128,13 @@ def register(parser):
 
 def run(args):
     ds = get_dataset(args)
-    print(ds.module)
     if not args.output.suffix:
         args.output = args.output.parent / "{}.{}".format(args.output.name, args.format)
     else:
         assert args.output.suffix[1:] == args.format
 
     glottolog = {lg.id: lg for lg in args.glottolog.api.languoids() if lg.latitude is not None} \
-        if args.glottolog else {}
+        if args.glottolog and args.glottolog != IGNORE_MISSING else {}
     data = MultiParameter(
         ds,
         args.parameters,
@@ -161,6 +160,13 @@ def run(args):
             for pid, cm in zip(data.parameters, args.colormaps)}
     except (ValueError, KeyError) as e:
         raise ParserError(str(e))
+
+    with_shapes = sum(1 for cm in cms.values() if cm.with_shapes)
+    if with_shapes:
+        if with_shapes > 1:
+            raise ParserError('Only one colormap can specify shapes.')
+        if len(data.parameters) != 2:
+            raise ParserError('Shapes can only be specified for one of two parameters.')
 
     if args.marker_factory:
         comps = args.marker_factory.split(',')

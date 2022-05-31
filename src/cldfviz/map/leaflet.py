@@ -5,10 +5,16 @@ import attr
 import yattag
 from clldutils import svg
 
-from .base import Map
+from .base import Map, PACIFIC_CENTERED
 import cldfviz
 
-
+SHAPE_MAP = {
+    'triangle_down': 'f',
+    'triangle_up': 't',
+    'square': 's',
+    'diamond': 'd',
+    'circle': 'c',
+}
 BASE_LAYERS = {
     'OpenStreetMap': (
         'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -83,22 +89,41 @@ class MapLeaflet(Map):
             help="Tile layer for Leaflet maps. {}".format(help_suffix),
             choices=list(BASE_LAYERS),
         )
+        parser.add_argument(
+            '--with-layers',
+            default=False,
+            action='store_true',
+            help='Create clickable Leaflet layers for each parameter value. {}'.format(help_suffix),
+        )
+        parser.add_argument(
+            '--with-layers-for-combinations',
+            default=False,
+            action='store_true',
+            help='Create clickable Leaflet layers for each combination of parameter values. '
+                 '{}'.format(help_suffix),
+        )
 
     def _lonlat(self, language):
         lon, lat = language.lon, language.lat
-        if self.args.pacific_centered and lon <= -26:
+        if self.args.pacific_centered and lon <= PACIFIC_CENTERED - 180:
+            # Anything west of 26°W is moved by 360°.
             lon += 360  # make the map pacific-centered.
         return [lon, lat]
 
+    def _icon(self, colors):
+        res = self.get_shape_and_color(colors)
+        if res:
+            return svg.icon(SHAPE_MAP[res[0]] + res[1].replace('#', ''))
+        return svg.pie([1] * len(colors), colors, stroke_circle=True)
+
     def add_language(self, language, values, colormaps, spec=None):
+        icon = self._icon([colormaps[pid](vals[0].v) for pid, vals in values.items()])
         props = {
             "name": language.name,
             "tooltip": language.name,
-            "values": ' / '.join(['{}'.format(vals[0].v) for vals in values.values() if vals]),
-            "icon": svg.data_url(svg.pie(
-                [1] * len(values),
-                [colormaps[pid](vals[0].v) for pid, vals in values.items()],
-                stroke_circle=True)),
+            "values": ' / '.join(
+                ['{}: {}'.format(pid, vals[0].v) for pid, vals in values.items() if vals]),
+            "icon": svg.data_url(icon),
             "markersize": self.args.markersize,
             "tooltip_class": "tt",
         }
@@ -119,11 +144,10 @@ class MapLeaflet(Map):
         doc, tag, text = yattag.Doc().tagtext()
 
         def marker(colors):
-            doc.stag('img', src=svg.data_url(svg.pie(
-                [1] * len(parameters),
-                colors,
-                stroke_circle=True,
-            )), width="{}".format(min([20, self.args.markersize * 2])))
+            doc.stag(
+                'img',
+                src=svg.data_url(self._icon(colors)),
+                width="{}".format(min([20, self.args.markersize * 2])))
 
         with tag('table', klass="legend"):
             for i, (pid, parameter) in enumerate(parameters.items()):
@@ -176,7 +200,11 @@ class MapLeaflet(Map):
             title=self.args.title or '',
             css='\n'.join(sorted(self.css)),
             legend=self.legend,
-            options=json.dumps({'language_labels': self.args.language_labels}),
+            options=json.dumps({
+                'language_labels': self.args.language_labels,
+                'with_layers': self.args.with_layers,
+                'with_layers_for_combinations': self.args.with_layers_for_combinations,
+            }),
             tile_url=json.dumps(BASE_LAYERS[self.args.base_layer][0]),
             tile_options=json.dumps(BASE_LAYERS[self.args.base_layer][1]),
             geojson=json.dumps({"features": self.features, "type": "FeatureCollection"}))
